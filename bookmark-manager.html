@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Bookmarks Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+            background: radial-gradient(ellipse at top, rgba(139, 92, 246, 0.1) 0%, rgba(0, 0, 0, 1) 60%), #000000;
+            color: #ffffff;
+            overflow-x: hidden;
+            max-width: 100vw;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            background: rgba(0, 0, 0, 0.8);
+            height: 70px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            align-items: center;
+            gap: 20px;
+            padding: 0 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+        }
+
+        .top-bar h1 {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        .top-bar-center {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .header-search-box {
+            padding: 12px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 400px;
+            font-size: 0.875rem;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            outline: none;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-search-box:focus {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+        }
+
+        .header-search-box::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .top-bar-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: flex-end;
+            flex-wrap: nowrap;
+            min-width: 0;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+            white-space: nowrap;
+            min-width: max-content;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: scale(1.02);
+        }
+
+        /* Cards Container */
+        .cards-container {
+            margin: 24px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            align-items: start;
+            max-width: calc(100vw - 48px);
+            width: calc(100vw - 48px);
+            box-sizing: border-box;
+        }
+
+
+
+        /* Card Styles */
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.2s ease;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .card-header {
+            margin-bottom: 16px;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .card-name {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: white;
+            border: none;
+            background: transparent;
+            flex: 1;
+            min-width: 0;
+            padding: 8px 0;
+            border-bottom: 2px solid transparent;
+            transition: border-color 0.2s ease;
+            box-sizing: border-box;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .card-name:focus {
+            outline: none;
+            border-bottom-color: #8b5cf6;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        /* Card Drop Zone */
+        .card-drop-zone {
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.6);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .card-drop-zone.drag-over {
+            border-color: #8b5cf6;
+            background-color: rgba(139, 92, 246, 0.1);
+            color: #8b5cf6;
+        }
+
+        .card-drop-icon {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+            opacity: 0.5;
+        }
+
+        /* Bookmark List in Cards */
+        .card-bookmarks {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        .card-bookmark-item {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .card-bookmark-item[draggable="true"] {
+            cursor: grab;
+        }
+
+        .card-bookmark-item[draggable="true"]:active {
+            cursor: grabbing;
+        }
+
+        .card-bookmark-item[draggable="true"]:hover {
+            border-color: rgba(139, 92, 246, 0.3);
+        }
+
+        .card-bookmark-item:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            margin: 0 -12px;
+            padding-left: 12px;
+            padding-right: 12px;
+            border-radius: 8px;
+        }
+
+        .card-bookmark-item:last-child {
+            border-bottom: none;
+        }
+
+        .card-bookmark-favicon {
+            width: 12px;
+            height: 12px;
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+
+        .card-bookmark-info {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .card-bookmark-title {
+            font-weight: 500;
+            color: white;
+            font-size: 0.875rem;
+            margin-bottom: 2px;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+            max-width: 100%;
+        }
+
+        .card-bookmark-url {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.75rem;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+            max-width: 100%;
+            word-break: break-all;
+        }
+
+        .card-bookmark-actions {
+            display: flex;
+            gap: 3px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .card-bookmark-item:hover .card-bookmark-actions {
+            opacity: 1;
+        }
+
+        .card-action-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            padding: 6px 8px;
+            border-radius: 6px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.75rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 28px;
+            height: 28px;
+        }
+
+        .card-action-btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .card-delete-btn:hover {
+            background-color: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+        }
+
+
+
+
+
+        /* Bookmark Drop Zones for Reordering */
+        .bookmark-drop-zone {
+            height: 2px;
+            background: transparent;
+            margin: 0;
+            border-radius: 2px;
+            transition: all 0.2s ease;
+            opacity: 0;
+            position: relative;
+            z-index: 10;
+        }
+
+        .bookmark-drop-zone.drag-over {
+            height: 20px;
+            background: rgba(139, 92, 246, 0.8);
+            opacity: 1;
+            margin: 10px 0;
+            border-radius: 10px;
+            box-shadow: 0 0 16px rgba(139, 92, 246, 0.5);
+        }
+
+        /* Make drop zones visible during drag */
+        .dragging-active .bookmark-drop-zone {
+            opacity: 1 !important;
+            background: rgba(139, 92, 246, 0.2) !important;
+            height: 16px !important;
+            margin: 6px 0 !important;
+            border-radius: 8px !important;
+        }
+
+        .card-bookmark-item.dragging {
+            opacity: 0.5;
+        }
+
+        /* Empty State */
+        .empty-state {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 48px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.4;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .cards-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .top-bar {
+                gap: 16px;
+                padding: 0 20px;
+            }
+            
+            .btn {
+                font-size: 0.8rem;
+                padding: 8px 12px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .top-bar {
+                grid-template-columns: 1fr;
+                height: auto;
+                padding: 20px 16px;
+                gap: 16px;
+                text-align: center;
+            }
+            
+            .top-bar h1 {
+                font-size: 1.25rem;
+                order: 1;
+            }
+            
+            .top-bar-center {
+                order: 2;
+            }
+            
+            .header-search-box {
+                max-width: 280px;
+            }
+            
+            .top-bar-controls {
+                order: 3;
+                justify-content: center;
+                flex-wrap: nowrap;
+                gap: 8px;
+                overflow-x: auto;
+            }
+
+            .btn {
+                flex-shrink: 0;
+                font-size: 0.8rem;
+                padding: 8px 12px;
+            }
+            
+            .cards-container {
+                grid-template-columns: 1fr;
+                margin: 16px;
+                max-width: calc(100vw - 32px);
+                gap: 16px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .card-header {
+                gap: 8px;
+            }
+
+            .card-action-btn {
+                min-width: 24px;
+                height: 24px;
+                padding: 4px 6px;
+                font-size: 0.7rem;
+            }
+        }
+
+        /* Hidden Input */
+        .hidden {
+            display: none;
+        }
+
+        /* Toast Notifications */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 12px;
+            transform: translateY(100px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            backdrop-filter: blur(20px);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+
+        .toast.success {
+            background: rgba(34, 197, 94, 0.9);
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+
+        .toast.error {
+            background: rgba(239, 68, 68, 0.9);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <h1>📚 Smart Bookmarks</h1>
+        <div class="top-bar-center">
+            <input type="text" class="header-search-box" id="searchBox" placeholder="Search bookmarks..." onkeyup="filterBookmarks()">
+        </div>
+        <div class="top-bar-controls">
+            <button class="btn" onclick="createNewCard()">➕ Add Card</button>
+            <button class="btn" onclick="exportBookmarks()">📤 Export XML</button>
+            <button class="btn" onclick="importBookmarks()">📥 Import XML</button>
+        </div>
+    </div>
+
+    <!-- Cards Container -->
+    <div class="cards-container" id="cardsContainer">
+        <div class="add-card-btn" onclick="createNewCard()">
+            <div class="add-card-icon">➕</div>
+            <div>Add New Card</div>
+        </div>
+    </div>
+
+    <!-- Hidden File Input -->
+    <input type="file" class="hidden" id="fileInput" accept=".xml" onchange="handleFileImport(event)">
+
+    <script>
+        // Global variables
+        let cards = [];
+        let draggedBookmark = null; // Track bookmark being dragged
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCards();
+            setupDragAndDrop();
+            renderCards();
+        });
+
+        // Drag and Drop Setup
+        function setupDragAndDrop() {
+            // Make the entire document handle drag events
+            document.addEventListener('dragover', function(e) {
+                e.preventDefault();
+            });
+
+            document.addEventListener('drop', function(e) {
+                e.preventDefault();
+            });
+        }
+
+        function setupCardDropZone(cardId) {
+            const cardDropZone = document.querySelector(`[data-card-id="${cardId}"] .card-drop-zone`);
+            if (!cardDropZone) return;
+
+            cardDropZone.addEventListener('dragenter', handleCardDragEnter);
+            cardDropZone.addEventListener('dragover', handleCardDragOver);
+            cardDropZone.addEventListener('dragleave', handleCardDragLeave);
+            cardDropZone.addEventListener('drop', function(e) {
+                handleCardDrop(e, cardId);
+            });
+
+            // Also make the entire card a drop zone when dragging bookmarks
+            const card = document.querySelector(`[data-card-id="${cardId}"]`);
+            if (card) {
+                card.addEventListener('dragenter', function(e) {
+                    if (draggedBookmark) {
+                        e.preventDefault();
+                        cardDropZone.classList.add('drag-over');
+                    }
+                });
+                card.addEventListener('dragover', function(e) {
+                    if (draggedBookmark) {
+                        e.preventDefault();
+                    }
+                });
+                card.addEventListener('dragleave', function(e) {
+                    if (draggedBookmark && !card.contains(e.relatedTarget)) {
+                        cardDropZone.classList.remove('drag-over');
+                    }
+                });
+                card.addEventListener('drop', function(e) {
+                    if (draggedBookmark) {
+                        handleCardDrop(e, cardId);
+                    }
+                });
+            }
+        }
+
+        function handleCardDragEnter(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function handleCardDragOver(e) {
+            e.preventDefault();
+        }
+
+        function handleCardDragLeave(e) {
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+                e.currentTarget.classList.remove('drag-over');
+            }
+        }
+
+        function handleCardDrop(e, cardId) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+
+            // Check if we're moving a bookmark between cards
+            if (draggedBookmark) {
+                const { sourceCardId, bookmarkId } = draggedBookmark;
+                
+                if (sourceCardId === cardId) {
+                    // Same card - don't do anything, let bookmark drop zones handle reordering
+                    return;
+                } else {
+                    // Different cards - move to end of target card
+                    const targetCard = cards.find(c => c.id === cardId);
+                    const endPosition = targetCard ? targetCard.bookmarks.length : 0;
+                    moveBookmarkToCardAtPosition(sourceCardId, bookmarkId, cardId, endPosition);
+                }
+                return;
+            }
+
+            // Handle external drag and drop (links from browser, etc.)
+            const items = e.dataTransfer.items;
+            
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                
+                if (item.kind === 'string') {
+                    if (item.type === 'text/uri-list') {
+                        item.getAsString(function(url) {
+                            addBookmarkToCard(cardId, url);
+                        });
+                    } else if (item.type === 'text/plain') {
+                        item.getAsString(function(text) {
+                            if (isValidUrl(text)) {
+                                addBookmarkToCard(cardId, text);
+                            }
+                        });
+                    } else if (item.type === 'text/html') {
+                        item.getAsString(function(html) {
+                            extractBookmarkFromHtml(html, cardId);
+                        });
+                    }
+                }
+            }
+        }
+
+        // Handle bookmark drag start
+        function handleBookmarkDragStart(e, sourceCardId, bookmarkId) {
+            e.stopPropagation(); // Prevent card click
+            draggedBookmark = {
+                sourceCardId: sourceCardId,
+                bookmarkId: bookmarkId
+            };
+            
+            // Add visual feedback
+            e.currentTarget.classList.add('dragging');
+            
+            // Show all drop zones
+            document.body.classList.add('dragging-active');
+            document.querySelectorAll('.bookmark-drop-zone').forEach(zone => {
+                zone.style.opacity = '1';
+                zone.style.background = 'rgba(139, 92, 246, 0.2)';
+            });
+            
+            // Set drag effect
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', ''); // Required for some browsers
+        }
+
+        // Handle bookmark drag end
+        function handleBookmarkDragEnd(e) {
+            // Reset visual feedback
+            e.currentTarget.classList.remove('dragging');
+            
+            // Hide all drop zones
+            document.body.classList.remove('dragging-active');
+            document.querySelectorAll('.bookmark-drop-zone').forEach(zone => {
+                zone.style.opacity = '0';
+                zone.style.background = 'transparent';
+                zone.classList.remove('drag-over');
+            });
+            
+            // Clear dragged bookmark after a short delay to allow drop to complete
+            setTimeout(() => {
+                draggedBookmark = null;
+            }, 100);
+        }
+
+        // Handle bookmark drop zone drag events
+        function handleBookmarkDragOver(e) {
+            e.preventDefault();
+            if (draggedBookmark) {
+                e.dataTransfer.dropEffect = 'move';
+            }
+        }
+
+        function handleBookmarkDragEnter(e) {
+            e.preventDefault();
+            if (draggedBookmark) {
+                e.currentTarget.classList.add('drag-over');
+            }
+        }
+
+        function handleBookmarkDragLeave(e) {
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+                e.currentTarget.classList.remove('drag-over');
+            }
+        }
+
+        function handleBookmarkDrop(e, targetCardId, position) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            
+            if (!draggedBookmark) return;
+
+            const { sourceCardId, bookmarkId } = draggedBookmark;
+            
+            if (sourceCardId === targetCardId) {
+                // Reordering within the same card
+                reorderBookmarkInCard(sourceCardId, bookmarkId, position);
+            } else {
+                // Moving between cards - use existing logic but insert at specific position
+                moveBookmarkToCardAtPosition(sourceCardId, bookmarkId, targetCardId, position);
+            }
+        }
+
+        // Reorder bookmark within the same card
+        function reorderBookmarkInCard(cardId, bookmarkId, newPosition) {
+            const card = cards.find(c => c.id === cardId);
+            if (!card) return;
+
+            const bookmarkIndex = card.bookmarks.findIndex(b => b.id === bookmarkId);
+            if (bookmarkIndex === -1) return;
+
+            // Remove bookmark from current position
+            const [bookmark] = card.bookmarks.splice(bookmarkIndex, 1);
+            
+            // Adjust position if we're moving down (since we removed an item)
+            const adjustedPosition = bookmarkIndex < newPosition ? newPosition - 1 : newPosition;
+            
+            // Insert at new position
+            card.bookmarks.splice(adjustedPosition, 0, bookmark);
+
+            saveCards();
+            renderCards();
+            showToast('Bookmark reordered!', 'success');
+        }
+
+        // Move bookmark between cards at specific position
+        function moveBookmarkToCardAtPosition(sourceCardId, bookmarkId, targetCardId, position) {
+            const sourceCard = cards.find(c => c.id === sourceCardId);
+            const targetCard = cards.find(c => c.id === targetCardId);
+            
+            if (!sourceCard || !targetCard) {
+                showToast('Error moving bookmark', 'error');
+                return;
+            }
+
+            const bookmarkIndex = sourceCard.bookmarks.findIndex(b => b.id === bookmarkId);
+            if (bookmarkIndex === -1) {
+                showToast('Bookmark not found', 'error');
+                return;
+            }
+
+            // Check if bookmark already exists in target card (excluding the one we're moving)
+            const bookmark = sourceCard.bookmarks[bookmarkIndex];
+            if (targetCard.bookmarks.some(b => {
+                // Don't check against the bookmark we're moving
+                if (b.id === bookmarkId) return false;
+                
+                try {
+                    return new URL(b.url).href === new URL(bookmark.url).href;
+                } catch {
+                    return b.url === bookmark.url;
+                }
+            })) {
+                showToast('Bookmark already exists in target card', 'error');
+                return;
+            }
+
+            // Move bookmark from source to target at specified position
+            const [movedBookmark] = sourceCard.bookmarks.splice(bookmarkIndex, 1);
+            targetCard.bookmarks.splice(position, 0, movedBookmark);
+
+            saveCards();
+            renderCards();
+            showToast('Bookmark moved successfully!', 'success');
+        }
+
+        // Move bookmark between cards
+        function moveBookmarkToCard(sourceCardId, bookmarkId, targetCardId) {
+            if (sourceCardId === targetCardId) {
+                showToast('Bookmark is already in this card', 'error');
+                return;
+            }
+
+            const sourceCard = cards.find(c => c.id === sourceCardId);
+            const targetCard = cards.find(c => c.id === targetCardId);
+            
+            if (!sourceCard || !targetCard) {
+                showToast('Error moving bookmark', 'error');
+                return;
+            }
+
+            const bookmarkIndex = sourceCard.bookmarks.findIndex(b => b.id === bookmarkId);
+            if (bookmarkIndex === -1) {
+                showToast('Bookmark not found', 'error');
+                return;
+            }
+
+            // Check if bookmark already exists in target card
+            const bookmark = sourceCard.bookmarks[bookmarkIndex];
+            if (targetCard.bookmarks.some(b => b.url === bookmark.url)) {
+                showToast('Bookmark already exists in target card', 'error');
+                return;
+            }
+
+            // Move bookmark from source to target
+            const [movedBookmark] = sourceCard.bookmarks.splice(bookmarkIndex, 1);
+            targetCard.bookmarks.unshift(movedBookmark);
+
+            // Save and re-render
+            saveCards();
+            renderCards();
+            showToast('Bookmark moved successfully!', 'success');
+        }
+
+        // URL validation
+        function isValidUrl(string) {
+            try {
+                new URL(string);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
+        // Extract bookmark from HTML (for browser drag and drop)
+        function extractBookmarkFromHtml(html, cardId) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const link = doc.querySelector('a');
+            
+            if (link) {
+                const url = link.href;
+                const title = link.textContent || link.title || url;
+                addBookmarkToCard(cardId, url, title);
+            }
+        }
+
+        // Add bookmark from URL to specific card
+        function addBookmarkToCard(cardId, url, customTitle = null) {
+            if (!isValidUrl(url)) return;
+            
+            // Try to fetch the title from the page
+            if (!customTitle) {
+                fetchPageTitle(url).then(title => {
+                    addBookmarkToCard(cardId, url, title || new URL(url).hostname);
+                }).catch(() => {
+                    addBookmarkToCard(cardId, url, new URL(url).hostname);
+                });
+                return;
+            }
+
+            const card = cards.find(c => c.id === cardId);
+            if (!card) return;
+
+            // Check if bookmark already exists in this card (normalize URLs for comparison)
+            try {
+                const normalizedUrl = new URL(url).href;
+                if (card.bookmarks.some(b => {
+                    try {
+                        return new URL(b.url).href === normalizedUrl;
+                    } catch {
+                        return b.url === url; // Fallback to string comparison
+                    }
+                })) {
+                    showToast('Bookmark already exists in this card!', 'error');
+                    return;
+                }
+            } catch {
+                // If URL normalization fails, use simple string comparison
+                if (card.bookmarks.some(b => b.url === url)) {
+                    showToast('Bookmark already exists in this card!', 'error');
+                    return;
+                }
+            }
+
+            const bookmark = {
+                id: Date.now().toString() + Math.random(),
+                url: url,
+                title: customTitle,
+                favicon: `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}`,
+                dateAdded: new Date().toISOString()
+            };
+
+            card.bookmarks.unshift(bookmark);
+            saveCards();
+            renderCards();
+            showToast('Bookmark added successfully!', 'success');
+        }
+
+        // Fetch page title
+        async function fetchPageTitle(url) {
+            try {
+                // Note: This will be blocked by CORS for most external sites
+                // In a real implementation, you'd need a backend service
+                const response = await fetch(url);
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const title = doc.querySelector('title');
+                return title ? title.textContent.trim() : null;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        // Create new card
+        function createNewCard() {
+            const card = {
+                id: Date.now().toString(),
+                name: 'New Card',
+                bookmarks: [],
+                dateCreated: new Date().toISOString()
+            };
+
+            cards.unshift(card); // Add to beginning of array
+            saveCards();
+            renderCards();
+            showToast('New card created!', 'success');
+        }
+
+        // Delete card
+        function deleteCard(cardId) {
+            if (confirm('Are you sure you want to delete this card and all its bookmarks?')) {
+                cards = cards.filter(c => c.id !== cardId);
+                saveCards();
+                renderCards();
+                showToast('Card deleted', 'success');
+            }
+        }
+
+        // Update card name
+        function updateCardName(cardId, newName) {
+            const card = cards.find(c => c.id === cardId);
+            if (card) {
+                card.name = newName;
+                saveCards();
+            }
+        }
+
+        // Delete bookmark from card
+        function deleteBookmarkFromCard(cardId, bookmarkId) {
+            const card = cards.find(c => c.id === cardId);
+            if (card) {
+                card.bookmarks = card.bookmarks.filter(b => b.id !== bookmarkId);
+                saveCards();
+                renderCards();
+                showToast('Bookmark deleted', 'success');
+            }
+        }
+
+        // Save cards to localStorage as XML
+        function saveCards() {
+            const xml = cardsToXml(cards);
+            localStorage.setItem('smart-bookmarks', xml);
+        }
+
+        // Load cards from localStorage
+        function loadCards() {
+            const xml = localStorage.getItem('smart-bookmarks');
+            if (xml) {
+                const loadedData = xmlToCards(xml);
+                cards = loadedData;
+                // If no cards exist, create a default card
+                if (cards.length === 0) {
+                    createNewCard();
+                }
+            } else {
+                // Create default card for new users
+                createNewCard();
+            }
+        }
+
+        // Convert cards to XML
+        function cardsToXml(cards) {
+            let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<cards>\n';
+            
+            cards.forEach(card => {
+                xml += '  <card>\n';
+                xml += `    <id>${escapeXml(card.id)}</id>\n`;
+                xml += `    <name>${escapeXml(card.name)}</name>\n`;
+                xml += `    <dateCreated>${escapeXml(card.dateCreated)}</dateCreated>\n`;
+                xml += '    <bookmarks>\n';
+                
+                card.bookmarks.forEach(bookmark => {
+                    xml += '      <bookmark>\n';
+                    xml += `        <id>${escapeXml(bookmark.id)}</id>\n`;
+                    xml += `        <title>${escapeXml(bookmark.title)}</title>\n`;
+                    xml += `        <url>${escapeXml(bookmark.url)}</url>\n`;
+                    xml += `        <favicon>${escapeXml(bookmark.favicon)}</favicon>\n`;
+                    xml += `        <dateAdded>${escapeXml(bookmark.dateAdded)}</dateAdded>\n`;
+                    xml += '      </bookmark>\n';
+                });
+                
+                xml += '    </bookmarks>\n';
+                xml += '  </card>\n';
+            });
+            
+            xml += '</cards>';
+            return xml;
+        }
+
+        // Convert XML to cards
+        function xmlToCards(xml) {
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(xml, 'text/xml');
+                
+                // Handle legacy bookmark format (bookmarks not in cards)
+                const hasCards = doc.querySelectorAll('card').length > 0;
+                const legacyBookmarks = doc.querySelectorAll('bookmarks > bookmark');
+                if (legacyBookmarks.length > 0 && !hasCards) {
+                    const defaultCard = {
+                        id: Date.now().toString(),
+                        name: 'Imported Bookmarks',
+                        dateCreated: new Date().toISOString(),
+                        bookmarks: Array.from(legacyBookmarks).map(element => ({
+                            id: element.querySelector('id')?.textContent || Date.now().toString() + Math.random(),
+                            title: element.querySelector('title')?.textContent || 'Untitled',
+                            url: element.querySelector('url')?.textContent || '',
+                            favicon: element.querySelector('favicon')?.textContent || '',
+                            dateAdded: element.querySelector('dateAdded')?.textContent || new Date().toISOString()
+                        }))
+                    };
+                    return [defaultCard];
+                }
+                
+                // Handle new card format
+                const cardElements = doc.querySelectorAll('card');
+                return Array.from(cardElements).map(cardElement => {
+                    const bookmarkElements = cardElement.querySelectorAll('bookmarks > bookmark');
+                    return {
+                        id: cardElement.querySelector('id')?.textContent || Date.now().toString(),
+                        name: cardElement.querySelector('name')?.textContent || 'Untitled Card',
+                        dateCreated: cardElement.querySelector('dateCreated')?.textContent || new Date().toISOString(),
+                        bookmarks: Array.from(bookmarkElements).map(element => ({
+                            id: element.querySelector('id')?.textContent || Date.now().toString() + Math.random(),
+                            title: element.querySelector('title')?.textContent || 'Untitled',
+                            url: element.querySelector('url')?.textContent || '',
+                            favicon: element.querySelector('favicon')?.textContent || '',
+                            dateAdded: element.querySelector('dateAdded')?.textContent || new Date().toISOString()
+                        }))
+                    };
+                });
+            } catch (error) {
+                console.error('Error parsing XML:', error);
+                return [];
+            }
+        }
+
+        // Escape XML characters
+        function escapeXml(text) {
+            return text.toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
+
+        // Render cards
+        function renderCards() {
+            const cardsContainer = document.getElementById('cardsContainer');
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            
+            // Filter cards and bookmarks based on search term
+            const filteredCards = cards.map(card => {
+                const filteredBookmarks = card.bookmarks.filter(bookmark => 
+                    bookmark.title.toLowerCase().includes(searchTerm) || 
+                    bookmark.url.toLowerCase().includes(searchTerm) ||
+                    card.name.toLowerCase().includes(searchTerm)
+                );
+                return { ...card, bookmarks: filteredBookmarks };
+            }).filter(card => card.bookmarks.length > 0 || searchTerm === '');
+
+            if (filteredCards.length === 0) {
+                cardsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📖</div>
+                        <div>${cards.length === 0 ? 'No cards yet. Use the "Add Card" button above to get started!' : 'No cards match your search.'}</div>
+                    </div>
+                `;
+                return;
+            }
+
+            cardsContainer.innerHTML = filteredCards.map(card => renderCard(card)).join('');
+
+            // Setup drop zones for each card
+            filteredCards.forEach(card => {
+                setupCardDropZone(card.id);
+            });
+        }
+
+        // Render individual card
+        function renderCard(card) {
+            return `
+                <div class="card" data-card-id="${card.id}">
+                    <div class="card-header">
+                        <input type="text" class="card-name" value="${escapeHtml(card.name)}" 
+                               onblur="updateCardName('${card.id}', this.value)"
+                               onkeypress="if(event.key==='Enter') this.blur()">
+                        <div class="card-actions">
+                            <button class="card-action-btn card-delete-btn" onclick="deleteCard('${card.id}')" title="Delete Card">🗑️</button>
+                        </div>
+                    </div>
+                    
+                    <div class="card-drop-zone">
+                        <div class="card-drop-icon">🔗</div>
+                        <div>Drop links here</div>
+                    </div>
+                    
+                    <div class="card-bookmarks">
+                        ${card.bookmarks.length === 0 ? 
+                            '<div style="text-align: center; color: #999; font-size: 0.9rem; padding: 20px;">No bookmarks yet</div>' :
+                            card.bookmarks.map((bookmark, index) => `
+                                <div class="bookmark-drop-zone" 
+                                     data-card-id="${card.id}" 
+                                     data-position="${index}"
+                                     ondragover="handleBookmarkDragOver(event)"
+                                     ondrop="handleBookmarkDrop(event, '${card.id}', ${index})"
+                                     ondragenter="handleBookmarkDragEnter(event)"
+                                     ondragleave="handleBookmarkDragLeave(event)">
+                                </div>
+                                <div class="card-bookmark-item" 
+                                     draggable="true" 
+                                     onclick="window.open('${bookmark.url}', '_blank')"
+                                     ondragstart="handleBookmarkDragStart(event, '${card.id}', '${bookmark.id}')"
+                                     ondragend="handleBookmarkDragEnd(event)">
+                                    <img class="card-bookmark-favicon" src="${bookmark.favicon}" onerror="this.style.display='none'" alt="favicon">
+                                    <div class="card-bookmark-info">
+                                        <div class="card-bookmark-title">${escapeHtml(bookmark.title)}</div>
+                                        <div class="card-bookmark-url">${escapeHtml(bookmark.url)}</div>
+                                    </div>
+                                    <div class="card-bookmark-actions">
+                                        <button class="card-action-btn card-delete-btn" onclick="event.stopPropagation(); deleteBookmarkFromCard('${card.id}', '${bookmark.id}')" title="Delete">🗑️</button>
+                                    </div>
+                                </div>
+                            `).join('') + 
+                            `<div class="bookmark-drop-zone" 
+                                  data-card-id="${card.id}" 
+                                  data-position="${card.bookmarks.length}"
+                                  ondragover="handleBookmarkDragOver(event)"
+                                  ondrop="handleBookmarkDrop(event, '${card.id}', ${card.bookmarks.length})"
+                                  ondragenter="handleBookmarkDragEnter(event)"
+                                  ondragleave="handleBookmarkDragLeave(event)">
+                             </div>`
+                        }
+                    </div>
+                </div>
+            `;
+        }
+
+        // Escape HTML characters
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Filter bookmarks
+        function filterBookmarks() {
+            renderCards();
+        }
+
+        // Export bookmarks
+        function exportBookmarks() {
+            const xml = cardsToXml(cards);
+            const blob = new Blob([xml], { type: 'application/xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `smart-bookmarks-${new Date().toISOString().split('T')[0]}.xml`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('Cards exported successfully!', 'success');
+        }
+
+        // Import bookmarks
+        function importBookmarks() {
+            document.getElementById('fileInput').click();
+        }
+
+        // Handle file import
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedCards = xmlToCards(e.target.result);
+                    
+                    // Merge with existing cards
+                    let addedCardCount = 0;
+                    let addedBookmarkCount = 0;
+                    
+                    importedCards.forEach(importedCard => {
+                        // Check if card with same name exists
+                        const existingCard = cards.find(c => c.name === importedCard.name);
+                        
+                        if (existingCard) {
+                            // Merge bookmarks into existing card
+                            importedCard.bookmarks.forEach(bookmark => {
+                                if (!existingCard.bookmarks.some(existing => existing.url === bookmark.url)) {
+                                    bookmark.id = Date.now().toString() + Math.random();
+                                    existingCard.bookmarks.push(bookmark);
+                                    addedBookmarkCount++;
+                                }
+                            });
+                        } else {
+                            // Add new card
+                            importedCard.id = Date.now().toString() + Math.random();
+                            importedCard.bookmarks.forEach(bookmark => {
+                                bookmark.id = Date.now().toString() + Math.random();
+                            });
+                            cards.push(importedCard);
+                            addedCardCount++;
+                            addedBookmarkCount += importedCard.bookmarks.length;
+                        }
+                    });
+
+                    saveCards();
+                    renderCards();
+                    showToast(`${addedCardCount} new cards and ${addedBookmarkCount} bookmarks imported!`, 'success');
+                } catch (error) {
+                    showToast('Error importing file. Please check the XML format.', 'error');
+                }
+            };
+            reader.readAsText(file);
+            
+            // Reset file input
+            event.target.value = '';
+        }
+
+        // Clear all bookmarks
+        function clearAllBookmarks() {
+            if (confirm('Are you sure you want to delete all cards and bookmarks? This action cannot be undone.')) {
+                cards = [];
+                createNewCard(); // Create one default card
+                showToast('All cards cleared', 'success');
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 100);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => document.body.removeChild(toast), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html> 
