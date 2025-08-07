@@ -265,7 +265,7 @@
             padding: 10px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             transition: all 0.2s ease;
             cursor: pointer;
             width: 100%;
@@ -332,11 +332,29 @@
             word-break: break-all;
         }
 
+        .card-bookmark-summary {
+            display: none;
+            color: rgba(255, 255, 255, 0.75);
+            font-size: 0.8rem;
+            margin-top: 6px;
+            line-height: 1.2rem;
+            max-width: 100%;
+            transition: all 0.15s ease;
+        }
+
+        /* Show full summary only when hovering the item */
+        .card-bookmark-item:hover .card-bookmark-summary {
+            display: block;
+            overflow: visible;
+            white-space: normal;
+        }
+
         .card-bookmark-actions {
             display: flex;
             gap: 3px;
             opacity: 0;
             transition: opacity 0.2s ease;
+            align-self: flex-start;
         }
 
         .card-bookmark-item:hover .card-bookmark-actions {
@@ -363,6 +381,12 @@
             background-color: rgba(255, 255, 255, 0.1);
             border-color: rgba(255, 255, 255, 0.2);
             color: white;
+        }
+
+        .card-action-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
         }
 
         .card-delete-btn:hover {
@@ -727,6 +751,7 @@
         </div>
         <div class="top-bar-controls">
             <button class="btn" id="addCardBtn" onclick="createNewCard()">➕ Add Card</button>
+            <button class="btn" onclick="enrichAllBookmarks()">✨ Enrich All</button>
             <button class="btn" onclick="exportBookmarks()">📤 Export XML</button>
             <button class="btn" onclick="importBookmarks()">📥 Import XML</button>
         </div>
@@ -1248,9 +1273,9 @@
                 }
             }
 
-            // Try to fetch the title from the page if no custom title provided
+            // Generate a human-friendly title with a cheap AI call if no custom title provided
             if (!customTitle) {
-                fetchPageTitle(url).then(title => {
+                generateTitleWithOpenAI(url).then(title => {
                     addBookmarkToCardWithTitle(cardId, url, title || new URL(url).hostname);
                 }).catch(() => {
                     addBookmarkToCardWithTitle(cardId, url, new URL(url).hostname);
@@ -1270,6 +1295,7 @@
                 id: Date.now().toString() + Math.random(),
                 url: url,
                 title: title,
+             summary: '',
                 favicon: `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}`,
                 dateAdded: new Date().toISOString()
             };
@@ -1416,6 +1442,7 @@
                     xml += '        <bookmark>\n';
                     xml += `          <id>${escapeXml(bookmark.id)}</id>\n`;
                     xml += `          <title>${escapeXml(bookmark.title)}</title>\n`;
+                    xml += `          <summary>${escapeXml(bookmark.summary || '')}</summary>\n`;
                     xml += `          <url>${escapeXml(bookmark.url)}</url>\n`;
                     xml += `          <favicon>${escapeXml(bookmark.favicon)}</favicon>\n`;
                     xml += `          <dateAdded>${escapeXml(bookmark.dateAdded)}</dateAdded>\n`;
@@ -1436,6 +1463,7 @@
                 xml += '      <bookmark>\n';
                 xml += `        <id>${escapeXml(item.bookmark.id)}</id>\n`;
                 xml += `        <title>${escapeXml(item.bookmark.title)}</title>\n`;
+                xml += `        <summary>${escapeXml(item.bookmark.summary || '')}</summary>\n`;
                 xml += `        <url>${escapeXml(item.bookmark.url)}</url>\n`;
                 xml += `        <favicon>${escapeXml(item.bookmark.favicon)}</favicon>\n`;
                 xml += `        <dateAdded>${escapeXml(item.bookmark.dateAdded)}</dateAdded>\n`;
@@ -1466,6 +1494,7 @@
                             bookmark: {
                                 id: element.querySelector('bookmark > id')?.textContent || Date.now().toString() + Math.random(),
                                 title: element.querySelector('bookmark > title')?.textContent || 'Untitled',
+                                summary: element.querySelector('bookmark > summary')?.textContent || '',
                                 url: element.querySelector('bookmark > url')?.textContent || '',
                                 favicon: element.querySelector('bookmark > favicon')?.textContent || '',
                                 dateAdded: element.querySelector('bookmark > dateAdded')?.textContent || new Date().toISOString()
@@ -1485,6 +1514,7 @@
                             bookmarks: Array.from(bookmarkElements).map(element => ({
                                 id: element.querySelector('id')?.textContent || Date.now().toString() + Math.random(),
                                 title: element.querySelector('title')?.textContent || 'Untitled',
+                                 summary: element.querySelector('summary')?.textContent || '',
                                 url: element.querySelector('url')?.textContent || '',
                                 favicon: element.querySelector('favicon')?.textContent || '',
                                 dateAdded: element.querySelector('dateAdded')?.textContent || new Date().toISOString()
@@ -1504,6 +1534,7 @@
                         bookmarks: Array.from(legacyBookmarks).map(element => ({
                             id: element.querySelector('id')?.textContent || Date.now().toString() + Math.random(),
                             title: element.querySelector('title')?.textContent || 'Untitled',
+                             summary: element.querySelector('summary')?.textContent || '',
                             url: element.querySelector('url')?.textContent || '',
                             favicon: element.querySelector('favicon')?.textContent || '',
                             dateAdded: element.querySelector('dateAdded')?.textContent || new Date().toISOString()
@@ -1523,6 +1554,7 @@
                         bookmarks: Array.from(bookmarkElements).map(element => ({
                             id: element.querySelector('id')?.textContent || Date.now().toString() + Math.random(),
                             title: element.querySelector('title')?.textContent || 'Untitled',
+                             summary: element.querySelector('summary')?.textContent || '',
                             url: element.querySelector('url')?.textContent || '',
                             favicon: element.querySelector('favicon')?.textContent || '',
                             dateAdded: element.querySelector('dateAdded')?.textContent || new Date().toISOString()
@@ -1552,11 +1584,13 @@
             
             // Filter cards and bookmarks based on search term
             const filteredCards = cards.map(card => {
-                const filteredBookmarks = card.bookmarks.filter(bookmark => 
-                    bookmark.title.toLowerCase().includes(searchTerm) || 
-                    bookmark.url.toLowerCase().includes(searchTerm) ||
-                    card.name.toLowerCase().includes(searchTerm)
-                );
+                const filteredBookmarks = card.bookmarks.filter(bookmark => {
+                    const titleMatch = bookmark.title.toLowerCase().includes(searchTerm);
+                    const urlMatch = bookmark.url.toLowerCase().includes(searchTerm);
+                    const summaryMatch = (bookmark.summary || '').toLowerCase().includes(searchTerm);
+                    const cardNameMatch = card.name.toLowerCase().includes(searchTerm);
+                    return titleMatch || urlMatch || summaryMatch || cardNameMatch;
+                });
                 return { ...card, bookmarks: filteredBookmarks };
             }).filter(card => card.bookmarks.length > 0 || searchTerm === '');
 
@@ -1626,8 +1660,10 @@
                                     <div class="card-bookmark-info">
                                         <div class="card-bookmark-title">${escapeHtml(bookmark.title)}</div>
                                         <div class="card-bookmark-url">${escapeHtml(bookmark.url)}</div>
+                                         ${bookmark.summary ? `<div class=\"card-bookmark-summary\">${escapeHtml(bookmark.summary)}</div>` : ''}
                                     </div>
                                     <div class="card-bookmark-actions">
+                                         <button class="card-action-btn" ${bookmark.summary ? 'disabled' : ''} onclick="event.stopPropagation(); enrichBookmark('${card.id}', '${bookmark.id}')" title="Enrich with AI">✨</button>
                                         <button class="card-action-btn card-delete-btn" onclick="event.stopPropagation(); deleteBookmarkFromCard('${card.id}', '${bookmark.id}')" title="Delete">🗑️</button>
                                     </div>
                                 </div>
@@ -1711,10 +1747,12 @@
             const searchTerm = document.getElementById('searchBox').value.toLowerCase();
             
             // Filter archived items based on search
-            const filteredItems = archivedBookmarks.filter(item => 
-                item.bookmark.title.toLowerCase().includes(searchTerm) || 
-                item.bookmark.url.toLowerCase().includes(searchTerm)
-            );
+            const filteredItems = archivedBookmarks.filter(item => {
+                const t = item.bookmark.title.toLowerCase();
+                const u = item.bookmark.url.toLowerCase();
+                const s = (item.bookmark.summary || '').toLowerCase();
+                return t.includes(searchTerm) || u.includes(searchTerm) || s.includes(searchTerm);
+            });
             
             if (filteredItems.length === 0) {
                 container.innerHTML = `
@@ -1762,6 +1800,7 @@
                     <div class="archive-info">
                         <div class="archive-title">${escapeHtml(item.bookmark.title)}</div>
                         <div class="archive-url">${escapeHtml(item.bookmark.url)}</div>
+                        ${item.bookmark.summary ? `<div class=\"card-bookmark-summary\">${escapeHtml(item.bookmark.summary)}</div>` : ''}
                     </div>
                     <div class="archive-time">${time}</div>
                 </div>
@@ -1875,6 +1914,151 @@
                 toast.classList.remove('show');
                 setTimeout(() => document.body.removeChild(toast), 300);
             }, 3000);
+        }
+
+        // =====================
+        // AI ENRICHMENT (Option C)
+        // =====================
+        // Uses OpenAI API to generate a clean title and a concise 1-2 sentence summary.
+        // Prompts user for an API key once (stored in localStorage under 'smart-bookmarks-openai-key').
+
+        function getOpenAIApiKey() {
+            let key = localStorage.getItem('smart-bookmarks-openai-key');
+            if (!key) {
+                key = prompt('Enter your OpenAI API key (starts with sk-):');
+                if (key) localStorage.setItem('smart-bookmarks-openai-key', key.trim());
+            }
+            return key && key.trim();
+        }
+
+        async function summarizeWithOpenAI(rawTitle, url, existingSummary = '') {
+            const apiKey = getOpenAIApiKey();
+            if (!apiKey) throw new Error('Missing OpenAI API key');
+
+            const system = 'You are a helpful assistant that writes clean, descriptive bookmark metadata.';
+            const user = `Given a bookmark, produce a refined title and a concise 1-2 sentence summary.\n\nURL: ${url}\nCurrent title: ${rawTitle || ''}\nCurrent summary (optional): ${existingSummary || ''}\n\nReturn strict JSON with keys: title, summary.`;
+
+            // Use responses API (compatible with gpt-4o-mini like models)
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        { role: 'system', content: system },
+                        { role: 'user', content: user }
+                    ],
+                    temperature: 0.4
+                })
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error('OpenAI error: ' + errText);
+            }
+
+            const data = await response.json();
+            const text = data.choices?.[0]?.message?.content || '';
+            // Try to parse JSON from the reply
+            let parsed = null;
+            try {
+                parsed = JSON.parse(text);
+            } catch (_) {
+                // Fallback: try to extract a JSON block
+                const match = text.match(/\{[\s\S]*\}/);
+                if (match) {
+                    try { parsed = JSON.parse(match[0]); } catch (_) {}
+                }
+            }
+            if (!parsed || typeof parsed !== 'object') {
+                return { title: rawTitle || new URL(url).hostname, summary: existingSummary || '' };
+            }
+            return {
+                title: (parsed.title || rawTitle || new URL(url).hostname).toString().slice(0, 140),
+                summary: (parsed.summary || existingSummary || '').toString().slice(0, 500)
+            };
+        }
+
+        // Cheap title generator using a smaller model
+        async function generateTitleWithOpenAI(url) {
+            const apiKey = getOpenAIApiKey();
+            if (!apiKey) throw new Error('Missing OpenAI API key');
+            const hostname = new URL(url).hostname;
+            const system = 'You write short, human-friendly bookmark titles.';
+            const user = `Create a succinct, descriptive title for this URL. Prefer site metadata if known, otherwise infer from the path.\nURL: ${url}\nReturn only the title as plain text, max 80 chars.`;
+
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        { role: 'system', content: system },
+                        { role: 'user', content: user }
+                    ],
+                    temperature: 0.2,
+                    max_tokens: 64
+                })
+            });
+            if (!response.ok) return hostname;
+            const data = await response.json();
+            const text = (data.choices?.[0]?.message?.content || '').trim();
+            if (!text) return hostname;
+            return text.slice(0, 80);
+        }
+
+        async function enrichBookmark(cardId, bookmarkId) {
+            try {
+                const card = cards.find(c => c.id === cardId);
+                if (!card) return;
+                const bookmark = card.bookmarks.find(b => b.id === bookmarkId);
+                if (!bookmark) return;
+                if (bookmark.summary && bookmark.summary.trim().length > 0) return; // already enriched
+
+                showToast('Enriching bookmark…');
+                const result = await summarizeWithOpenAI(bookmark.title, bookmark.url, bookmark.summary);
+                // Only update summary per request
+                bookmark.summary = result.summary || bookmark.summary || '';
+                saveCards();
+                renderCurrentView();
+                showToast('Bookmark enriched!', 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('AI enrichment failed', 'error');
+            }
+        }
+
+        async function enrichAllBookmarks() {
+            const apiKey = getOpenAIApiKey();
+            if (!apiKey) {
+                showToast('OpenAI key required', 'error');
+                return;
+            }
+            // Process sequentially to avoid rate limits
+            let updated = 0;
+            for (const card of cards) {
+                for (const b of card.bookmarks) {
+                    try {
+                        const result = await summarizeWithOpenAI(b.title, b.url, b.summary);
+                        const changed = (result.summary && result.summary !== (b.summary || ''));
+                        if (changed) {
+                            b.summary = result.summary || b.summary || '';
+                            updated++;
+                            saveCards();
+                            renderCurrentView();
+                        }
+                    } catch (e) {
+                        // Skip failures, continue
+                    }
+                }
+            }
+            showToast(`Enrichment complete (${updated} updated)`, 'success');
         }
     </script>
 </body>
