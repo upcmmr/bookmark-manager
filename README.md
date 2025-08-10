@@ -1,14 +1,17 @@
 # Smart Bookmarks Manager
 
-A clean, drag-and-drop bookmark organizer with archive functionality.
+A clean, drag-and-drop bookmark organizer with Notion integration and AI enrichment.
 
 ## Features
 
 - **Card-based Organization** - Group bookmarks into customizable cards
+- **Notion Integration** - Special handling for Notion pages displayed above regular bookmarks
 - **Drag & Drop Interface** - Reorder bookmarks and cards with intuitive drag and drop
 - **External Link Support** - Drop links directly from your browser into cards
+- **Open All Links** - Bulk open all bookmarks in a card with one click
+- **AI Enrichment** - Generate summaries for bookmarks using OpenAI API (optional)
 - **Archive System** - Deleted bookmarks are automatically archived (500 item limit)
-- **Search & Filter** - Find bookmarks across all cards
+- **Search & Filter** - Find bookmarks across all cards and archive
 - **XML Import/Export** - Backup and restore your bookmark collections
 - **Responsive Design** - Works on desktop and mobile devices
 
@@ -27,8 +30,11 @@ A clean, drag-and-drop bookmark organizer with archive functionality.
 1. Open `bookmark-manager.html` in your browser
 2. Create cards to organize your bookmarks
 3. Drag links from your browser to the "Drop links here" zones
-4. Use drag and drop to reorder bookmarks and cards
-5. Switch to Archive tab to view deleted bookmarks
+4. Notion pages are automatically displayed as "Notion Page" above regular bookmarks
+5. Use the 🚀 button to open all links in a card at once
+6. Use the ✨ button to AI-enrich bookmarks with summaries (requires OpenAI API key)
+7. Use drag and drop to reorder bookmarks and cards
+8. Switch to Archive tab to view deleted bookmarks
 
 ## File Structure
 
