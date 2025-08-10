@@ -193,6 +193,12 @@
             gap: 12px;
         }
 
+        /* Notion links shown beneath title */
+        .card-notion-links {
+            margin: 0 0 12px 0;
+            display: block;
+        }
+
         .card-name {
             font-size: 1.125rem;
             font-weight: 600;
@@ -1292,13 +1298,24 @@
             if (!card) return;
 
             const bookmark = {
-                id: Date.now().toString() + Math.random(),
+                id: generateId(),
                 url: url,
                 title: title,
-             summary: '',
+                summary: '',
                 favicon: `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}`,
                 dateAdded: new Date().toISOString()
             };
+
+            // If this is a Notion page, add/update in the card's Notion links
+            if (isNotionUrl(url)) {
+                if (!Array.isArray(card.notionLinks)) card.notionLinks = [];
+                const exists = card.notionLinks.some(nl => {
+                    try { return new URL(nl.url).href === new URL(url).href; } catch { return nl.url === url; }
+                });
+                if (!exists) {
+                    card.notionLinks.push({ id: generateId(), url, title: title || '' });
+                }
+            }
 
             card.bookmarks.unshift(bookmark);
             saveCards();
@@ -1306,29 +1323,14 @@
             showToast('Bookmark added successfully!', 'success');
         }
 
-        // Fetch page title
-        async function fetchPageTitle(url) {
-            try {
-                // Note: This will be blocked by CORS for most external sites
-                // In a real implementation, you'd need a backend service
-                const response = await fetch(url);
-                const html = await response.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const title = doc.querySelector('title');
-                return title ? title.textContent.trim() : null;
-            } catch (error) {
-                return null;
-            }
-        }
-
         // Create new card
         function createNewCard() {
             const card = {
-                id: Date.now().toString(),
+                id: generateId(),
                 name: 'New Card',
                 bookmarks: [],
-                dateCreated: new Date().toISOString()
+                dateCreated: new Date().toISOString(),
+                notionLinks: []
             };
 
             cards.unshift(card); // Add to beginning of array
@@ -1385,6 +1387,54 @@
             }
         }
 
+        // Delete notion link from card
+        function deleteNotionLink(cardId, notionLinkId) {
+            const card = cards.find(c => c.id === cardId);
+            if (card && Array.isArray(card.notionLinks)) {
+                const linkIndex = card.notionLinks.findIndex(nl => nl.id === notionLinkId);
+                if (linkIndex !== -1) {
+                    card.notionLinks.splice(linkIndex, 1);
+                    saveCards();
+                    renderCurrentView();
+                    showToast('Notion link removed', 'success');
+                }
+            }
+        }
+
+        // Open all links in a card (bookmarks + notion links)
+        function openAllLinks(cardId) {
+            const card = cards.find(c => c.id === cardId);
+            if (!card) return;
+
+            const allUrls = [];
+            
+            // Add all bookmark URLs
+            if (card.bookmarks && card.bookmarks.length > 0) {
+                card.bookmarks.forEach(bookmark => {
+                    allUrls.push(bookmark.url);
+                });
+            }
+            
+            // Add all notion link URLs
+            if (card.notionLinks && card.notionLinks.length > 0) {
+                card.notionLinks.forEach(notionLink => {
+                    allUrls.push(notionLink.url);
+                });
+            }
+
+            if (allUrls.length === 0) {
+                showToast('No links to open in this card', 'error');
+                return;
+            }
+
+            // Open all URLs in new tabs
+            allUrls.forEach(url => {
+                window.open(url, '_blank');
+            });
+
+            showToast(`Opened ${allUrls.length} links`, 'success');
+        }
+
         // Save cards to localStorage as XML
         function saveCards() {
             const xml = cardsToXml(cards);
@@ -1436,6 +1486,16 @@
                 xml += `      <id>${escapeXml(card.id)}</id>\n`;
                 xml += `      <name>${escapeXml(card.name)}</name>\n`;
                 xml += `      <dateCreated>${escapeXml(card.dateCreated)}</dateCreated>\n`;
+                // Notion links (multiple)
+                xml += '      <notionLinks>\n';
+                (card.notionLinks || []).forEach(nl => {
+                    xml += '        <notionLink>\n';
+                    xml += `          <id>${escapeXml(nl.id || '')}</id>\n`;
+                    xml += `          <url>${escapeXml(nl.url || '')}</url>\n`;
+                    xml += `          <title>${escapeXml(nl.title || '')}</title>\n`;
+                    xml += '        </notionLink>\n';
+                });
+                xml += '      </notionLinks>\n';
                 xml += '      <bookmarks>\n';
                 
                 card.bookmarks.forEach(bookmark => {
@@ -1476,6 +1536,53 @@
             return xml;
         }
 
+        // Helper functions for XML parsing
+        function generateId() {
+            return Date.now().toString() + Math.random();
+        }
+
+        function parseBookmarkElement(element) {
+            return {
+                id: element.querySelector('id')?.textContent || generateId(),
+                title: element.querySelector('title')?.textContent || 'Untitled',
+                summary: element.querySelector('summary')?.textContent || '',
+                url: element.querySelector('url')?.textContent || '',
+                favicon: element.querySelector('favicon')?.textContent || '',
+                dateAdded: element.querySelector('dateAdded')?.textContent || new Date().toISOString()
+            };
+        }
+
+        function parseNotionLinks(cardElement) {
+            const notionLinkElements = cardElement.querySelectorAll('notionLinks > notionLink');
+            let notionLinks = Array.from(notionLinkElements).map(el => ({
+                id: el.querySelector('id')?.textContent || generateId(),
+                url: el.querySelector('url')?.textContent || '',
+                title: el.querySelector('title')?.textContent || ''
+            }));
+            
+            // Fallback to legacy single notion link format
+            if (notionLinks.length === 0) {
+                const singleNotionUrl = cardElement.querySelector('notionUrl')?.textContent || '';
+                const singleNotionTitle = cardElement.querySelector('notionTitle')?.textContent || '';
+                if (singleNotionUrl) {
+                    notionLinks = [{ id: generateId(), url: singleNotionUrl, title: singleNotionTitle }];
+                }
+            }
+            
+            return notionLinks;
+        }
+
+        function parseCardElement(cardElement) {
+            const bookmarkElements = cardElement.querySelectorAll('bookmarks > bookmark');
+            return {
+                id: cardElement.querySelector('id')?.textContent || generateId(),
+                name: cardElement.querySelector('name')?.textContent || 'Untitled Card',
+                dateCreated: cardElement.querySelector('dateCreated')?.textContent || new Date().toISOString(),
+                notionLinks: parseNotionLinks(cardElement),
+                bookmarks: Array.from(bookmarkElements).map(parseBookmarkElement)
+            };
+        }
+
         // Convert XML to cards and archive
         function xmlToCards(xml) {
             try {
@@ -1489,78 +1596,34 @@
                     const archiveElements = doc.querySelectorAll('archive > archivedItem');
                     if (archiveElements.length > 0) {
                         archivedBookmarks = Array.from(archiveElements).map(element => ({
-                            id: element.querySelector('id')?.textContent || Date.now().toString() + Math.random(),
+                            id: element.querySelector('id')?.textContent || generateId(),
                             dateArchived: element.querySelector('dateArchived')?.textContent || new Date().toISOString(),
-                            bookmark: {
-                                id: element.querySelector('bookmark > id')?.textContent || Date.now().toString() + Math.random(),
-                                title: element.querySelector('bookmark > title')?.textContent || 'Untitled',
-                                summary: element.querySelector('bookmark > summary')?.textContent || '',
-                                url: element.querySelector('bookmark > url')?.textContent || '',
-                                favicon: element.querySelector('bookmark > favicon')?.textContent || '',
-                                dateAdded: element.querySelector('bookmark > dateAdded')?.textContent || new Date().toISOString()
-                            }
+                            bookmark: parseBookmarkElement(element.querySelector('bookmark'))
                         }));
                         saveArchive();
                     }
                     
                     // Load cards
                     const cardElements = doc.querySelectorAll('cards > card');
-                    return Array.from(cardElements).map(cardElement => {
-                        const bookmarkElements = cardElement.querySelectorAll('bookmarks > bookmark');
-                        return {
-                            id: cardElement.querySelector('id')?.textContent || Date.now().toString(),
-                            name: cardElement.querySelector('name')?.textContent || 'Untitled Card',
-                            dateCreated: cardElement.querySelector('dateCreated')?.textContent || new Date().toISOString(),
-                            bookmarks: Array.from(bookmarkElements).map(element => ({
-                                id: element.querySelector('id')?.textContent || Date.now().toString() + Math.random(),
-                                title: element.querySelector('title')?.textContent || 'Untitled',
-                                 summary: element.querySelector('summary')?.textContent || '',
-                                url: element.querySelector('url')?.textContent || '',
-                                favicon: element.querySelector('favicon')?.textContent || '',
-                                dateAdded: element.querySelector('dateAdded')?.textContent || new Date().toISOString()
-                            }))
-                        };
-                    });
+                    return Array.from(cardElements).map(parseCardElement);
                 }
                 
                 // Handle legacy bookmark format (bookmarks not in cards)
                 const hasCards = doc.querySelectorAll('card').length > 0;
                 const legacyBookmarks = doc.querySelectorAll('bookmarks > bookmark');
                 if (legacyBookmarks.length > 0 && !hasCards) {
-                    const defaultCard = {
-                        id: Date.now().toString(),
+                    return [{
+                        id: generateId(),
                         name: 'Imported Bookmarks',
                         dateCreated: new Date().toISOString(),
-                        bookmarks: Array.from(legacyBookmarks).map(element => ({
-                            id: element.querySelector('id')?.textContent || Date.now().toString() + Math.random(),
-                            title: element.querySelector('title')?.textContent || 'Untitled',
-                             summary: element.querySelector('summary')?.textContent || '',
-                            url: element.querySelector('url')?.textContent || '',
-                            favicon: element.querySelector('favicon')?.textContent || '',
-                            dateAdded: element.querySelector('dateAdded')?.textContent || new Date().toISOString()
-                        }))
-                    };
-                    return [defaultCard];
+                        notionLinks: [],
+                        bookmarks: Array.from(legacyBookmarks).map(parseBookmarkElement)
+                    }];
                 }
                 
                 // Handle old card format (without smartBookmarks root)
                 const cardElements = doc.querySelectorAll('card');
-                return Array.from(cardElements).map(cardElement => {
-                    const bookmarkElements = cardElement.querySelectorAll('bookmarks > bookmark');
-                    return {
-                        id: cardElement.querySelector('id')?.textContent || Date.now().toString(),
-                        name: cardElement.querySelector('name')?.textContent || 'Untitled Card',
-                        dateCreated: cardElement.querySelector('dateCreated')?.textContent || new Date().toISOString(),
-                        bookmarks: Array.from(bookmarkElements).map(element => ({
-                            id: element.querySelector('id')?.textContent || Date.now().toString() + Math.random(),
-                            title: element.querySelector('title')?.textContent || 'Untitled',
-                             summary: element.querySelector('summary')?.textContent || '',
-                            url: element.querySelector('url')?.textContent || '',
-                            favicon: element.querySelector('favicon')?.textContent || '',
-                            dateAdded: element.querySelector('dateAdded')?.textContent || new Date().toISOString()
-                        }))
-                    };
-                });
+                return Array.from(cardElements).map(parseCardElement);
             } catch (error) {
                 console.error('Error parsing XML:', error);
                 return [];
@@ -1626,6 +1689,40 @@
                 `draggable="true" 
                  ondragstart="handleCardDragStart(event, '${card.id}')"
                  ondragend="handleCardDragEnd(event)"` : '';
+
+            // Build Notion links section with same look-and-feel and actions
+            let notionLinksHtml = '';
+            if (card.notionLinks && card.notionLinks.length > 0) {
+                const items = card.notionLinks.map(nl => {
+                    // Find matching bookmark by URL
+                    let matched = null;
+                    try {
+                        const nlUrl = new URL(nl.url).href;
+                        matched = (card.bookmarks || []).find(b => {
+                            try { return new URL(b.url).href === nlUrl; } catch { return b.url === nl.url; }
+                        }) || null;
+                    } catch (_) {
+                        matched = (card.bookmarks || []).find(b => b.url === nl.url) || null;
+                    }
+                    const hostname = (function(){ try { return new URL(nl.url).hostname; } catch(_) { return 'notion.so'; } })();
+                    const summaryHtml = matched && matched.summary ? `<div class=\"card-bookmark-summary\">${escapeHtml(matched.summary)}</div>` : '';
+                    const actionsHtml = `
+                        <div class=\"card-bookmark-actions\"> 
+                            <button class=\"card-action-btn card-delete-btn\" onclick=\"event.stopPropagation(); deleteNotionLink('${card.id}', '${nl.id}')\" title=\"Delete\">🗑️</button>
+                        </div>`;
+                    return `
+                        <div class=\"card-bookmark-item\" onclick=\"window.open('${nl.url}', '_blank')\" draggable=\"false\">
+                            <img class=\"card-bookmark-favicon\" src=\"https://www.google.com/s2/favicons?domain=${hostname}\" onerror=\"this.style.display='none'\" alt=\"favicon\">
+                            <div class=\"card-bookmark-info\">
+                                <div class=\"card-bookmark-title\">Notion Page</div>
+                                <div class=\"card-bookmark-url\">${escapeHtml(nl.url)}</div>
+                                ${summaryHtml}
+                            </div>
+                            ${actionsHtml}
+                        </div>`;
+                }).join('');
+                notionLinksHtml = `<div class=\"card-notion-links\">${items}</div>`;
+            }
             
             return `
                 <div class="card" data-card-id="${card.id}" data-card-index="${cardIndex}" ${dragAttributes}>
@@ -1634,9 +1731,11 @@
                                onblur="updateCardName('${card.id}', this.value)"
                                onkeypress="if(event.key==='Enter') this.blur()">
                         <div class="card-actions">
+                            <button class="card-action-btn" onclick="openAllLinks('${card.id}')" title="Open All Links">🚀</button>
                             <button class="card-action-btn card-delete-btn" onclick="deleteCard('${card.id}')" title="Delete Card">🗑️</button>
                         </div>
                     </div>
+                    ${notionLinksHtml}
                     
                     <div class="card-drop-zone">
                         <div class="card-drop-icon">🔗</div>
@@ -1685,6 +1784,17 @@
             return div.innerHTML;
         }
 
+        // Identify Notion URLs
+        function isNotionUrl(url) {
+            try {
+                const u = new URL(url);
+                const host = u.hostname.toLowerCase();
+                return host.endsWith('notion.so') || host.endsWith('notion.site');
+            } catch {
+                return false;
+            }
+        }
+
         // Filter bookmarks
         function filterBookmarks() {
             renderCurrentView();
@@ -1725,9 +1835,9 @@
         // Archive a bookmark
         function archiveBookmark(bookmark) {
             const archivedItem = {
+                id: generateId(),
                 bookmark: { ...bookmark },
-                dateArchived: new Date().toISOString(),
-                id: Date.now().toString() + Math.random()
+                dateArchived: new Date().toISOString()
             };
             
             // Add to beginning of archive (newest first)
@@ -1870,16 +1980,16 @@
                             // Merge bookmarks into existing card
                             importedCard.bookmarks.forEach(bookmark => {
                                 if (!existingCard.bookmarks.some(existing => existing.url === bookmark.url)) {
-                                    bookmark.id = Date.now().toString() + Math.random();
+                                    bookmark.id = generateId();
                                     existingCard.bookmarks.push(bookmark);
                                     addedBookmarkCount++;
                                 }
                             });
                         } else {
                             // Add new card
-                            importedCard.id = Date.now().toString() + Math.random();
+                            importedCard.id = generateId();
                             importedCard.bookmarks.forEach(bookmark => {
-                                bookmark.id = Date.now().toString() + Math.random();
+                                bookmark.id = generateId();
                             });
                             cards.push(importedCard);
                             addedCardCount++;
