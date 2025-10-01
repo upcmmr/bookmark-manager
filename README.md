@@ -1,4 +1,4 @@
-# Smart Bookmarks Manager
+# Smart Bookmark Manager
 
 A drag-and-drop bookmark organizer with card-based organization.
 
